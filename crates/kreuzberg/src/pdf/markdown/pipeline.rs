@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use crate::pdf::error::Result;
 use crate::pdf::hierarchy::{BoundingBox, SegmentData, TextBlock, assign_heading_levels_smart, cluster_font_sizes};
 use pdfium_render::prelude::*;
+#[cfg(not(target_arch = "wasm32"))]
 use rayon::prelude::*;
 
 use super::assembly::assemble_markdown_with_tables;
@@ -789,7 +790,7 @@ pub fn render_document_as_markdown_with_tables(
             if has_table_model {
                 if let (Some(images), Some(results)) = (layout_images, layout_results) {
                     let parallel_tables: Vec<Vec<crate::types::Table>> = table_pages
-                        .par_iter()
+                        .iter()
                         .map(|tp| {
                             if let Some(variant) = slanet_variant {
                                 // SLANeXT path — ensure models are loaded in thread-local
@@ -1097,8 +1098,14 @@ pub fn render_document_as_markdown_with_tables(
         })
         .collect();
 
+    #[cfg(not(target_arch = "wasm32"))]
     let mut all_page_paragraphs: Vec<Vec<PdfParagraph>> = page_inputs
         .into_par_iter()
+        .map(|input| process_single_page(input, &heading_map, doc_body_font_size))
+        .collect();
+    #[cfg(target_arch = "wasm32")]
+    let mut all_page_paragraphs: Vec<Vec<PdfParagraph>> = page_inputs
+        .into_iter()
         .map(|input| process_single_page(input, &heading_map, doc_body_font_size))
         .collect();
 
